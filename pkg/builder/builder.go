@@ -46,7 +46,7 @@ type Server struct {
 }
 
 // Build returns a Command used to run the apiserver
-func (a *Server) Build() (*Command, error) {
+func (a *Server) Build(stopCh <-chan struct{}) (*Command, error) {
 	a.schemes = append(a.schemes, apiserver.Scheme)
 	a.schemeBuilder.Register(
 		func(scheme *runtime.Scheme) error {
@@ -86,7 +86,7 @@ func (a *Server) Build() (*Command, error) {
 		return nil, errs{list: a.errs}
 	}
 	o := server.NewWardleServerOptions(os.Stdout, os.Stderr, a.orderedGroupVersions...)
-	cmd := server.NewCommandStartServer(o, genericapiserver.SetupSignalHandler())
+	cmd := server.NewCommandStartServer(o, stopCh)
 	server.ApplyFlagsFns(cmd.Flags())
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 	return cmd, nil
@@ -94,7 +94,11 @@ func (a *Server) Build() (*Command, error) {
 
 // Execute builds and executes the apiserver Command.
 func (a *Server) Execute() error {
-	cmd, err := a.Build()
+	return a.ExecuteWithStopChannel(genericapiserver.SetupSignalHandler())
+}
+
+func (a *Server) ExecuteWithStopChannel(stopCh <-chan struct{}) error {
+	cmd, err := a.Build(stopCh)
 	if err != nil {
 		return err
 	}
